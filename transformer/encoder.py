@@ -3,6 +3,7 @@ from torch import nn
 from .attention import MultiHeadAttention
 from .feed_forward import FeedForward
 
+
 class EncoderLayer(nn.Module):
     def __init__(self, d_model, nhead, d_ffn):
         super(EncoderLayer, self).__init__()
@@ -28,11 +29,14 @@ class EncoderLayer(nn.Module):
 
         return src
 
+
 class Encoder(nn.Module):
     def __init__(self, d_model, nhead, num_encoder_layers, d_ffn):
         super(Encoder, self).__init__()
 
-        self.encoders = nn.ModuleList([EncoderLayer(d_model, nhead, d_ffn) for _ in range(num_encoder_layers)])
+        self.encoders = nn.ModuleList(
+            [EncoderLayer(d_model, nhead, d_ffn) for _ in range(num_encoder_layers)]
+        )
 
     def forward(self, src, src_mask=None):
         # src: [batch_size, src_sequence_length, d_model]
