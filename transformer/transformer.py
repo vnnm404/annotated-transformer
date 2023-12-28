@@ -24,5 +24,6 @@ class Transformer(nn.Module):
         outputs = self.decoder(encoder_outputs, tgt, tgt_mask, mem_mask)
         return outputs
 
-    def generate_square_subsequent_mask(self, sz, device="cpu", dtype=torch.float32):
-        return torch.tril(torch.ones(size=(sz, sz), device=device, dtype=dtype))
+    @staticmethod
+    def generate_square_subsequent_mask(sz, device="cpu", dtype=torch.float32):
+        return torch.triu(torch.ones(sz, sz) * float('-inf'), diagonal=1)

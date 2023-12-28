@@ -1,3 +1,4 @@
+import math
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -10,7 +11,7 @@ class MultiHeadAttentionSlow(nn.Module):
         '''This is an inefficient implementation, all nheads can be done in parallel with a clever trick.'''
 
         if d_model % nhead != 0:
-            raise ValueError("nhead % d_model != 0")
+            raise ValueError("d_model % nhead != 0")
 
         self.nhead = nhead
         self.h_dim = d_model // nhead
@@ -32,7 +33,6 @@ class MultiHeadAttentionSlow(nn.Module):
         # mask: [output_sequence_length, input_sequence_length]
 
         outputs = []
-
         for i in range(self.nhead):
             query_i = self.W_query[i](
                 query
@@ -72,8 +72,7 @@ class MultiHeadAttentionSlow(nn.Module):
         score = score * (1 / torch.sqrt(d_key))
 
         if mask is not None:
-            mask = mask.unsqueeze(dim=0).repeat(batch_size, 1, 1)
-            score = score.masked_fill(mask == 0, -10000)
+            score = score + mask
 
         score = F.softmax(score, dim=2)
 
@@ -90,7 +89,7 @@ class MultiHeadAttention(nn.Module):
         super(MultiHeadAttention, self).__init__()
 
         if d_model % nhead != 0:
-            raise ValueError("nhead % d_model != 0")
+            raise ValueError("d_model % nhead != 0")
 
         self.nhead = nhead
         self.h_dim = d_model // nhead
@@ -116,44 +115,40 @@ class MultiHeadAttention(nn.Module):
         )  # [batch_size, input_sequence_length, nhead, h_dim]
 
         # outputs: [batch_size, output_sequence_length, nhead, h_dim]
-        outputs = self.scaled_dot_product(query=query, key=key, value=value, mask=mask)
+        outputs, weights = self.scaled_dot_product(query=query, key=key, value=value, mask=mask)
         outputs = self.combine(outputs)  # [batch_size, output_sequence_length, d_model]
 
         outputs = self.projection(outputs)
-        return outputs
+        return outputs, weights
 
     def scaled_dot_product(self, query, key, value, mask=None):
         # query: [batch_size, output_sequence_length, nhead, h_dim]
-        # key: [batch_size, output_sequence_length, nhead, h_dim]
-        # value: [batch_size, output_sequence_length, nhead, h_dim]
+        # key: [batch_size, input_sequence_length, nhead, h_dim]
+        # value: [batch_size, input_sequence_length, nhead, h_dim]
         # mask: [output_sequence_length, input_sequence_length]
 
-        d_key = torch.tensor(key.size(2))
+        d_key = torch.tensor(key.size(3))
         batch_size = query.size(0)
 
         # query: [batch_size, output_sequence_length, nhead, h_dim]
-        # key: [batch_size, output_sequence_length, nhead, h_dim]
-        score = torch.einsum(
+        # key: [batch_size, input_sequence_length, nhead, h_dim]
+        weights = torch.einsum(
             "bihd,bkhd->bhik", query, key
-        )  # [batch_size, nhead, output_sequence_length, input_sequence_length]
-        score = score * (1 / torch.sqrt(d_key))
+        )  # [batch_size, output_sequence_length, nhead, input_sequence_length]
+        weights = weights * (1 / torch.sqrt(d_key))
 
         if mask is not None:
-            mask = (
-                mask.unsqueeze(dim=0)
-                .unsqueeze(dim=0)
-                .repeat(batch_size, self.nhead, 1, 1)
-            )
-            score = score.masked_fill(mask == 0, -10000)
+            weights = weights + mask
 
-        score = F.softmax(score, dim=2)
+        weights = F.softmax(weights, dim=3)
 
-        # score: [batch_size, nhead, output_sequence_length, input_sequence_length]
+        # weights: [batch_size, nhead, output_sequence_length, input_sequence_length]
         # value: [batch_size, input_sequence_length, nhead, h_dim]
         output = torch.einsum(
-            "bhij,bjhk->bihk", score, value
+            "bhij,bjhk->bihk", weights, value
         )  # [batch_size, output_sequence_length, nhead, h_dim]
-        return output
+
+        return output, weights
 
     def split(self, tensor):
         batch_size, sequence_length, d_tensor = tensor.size()

@@ -19,7 +19,7 @@ class EncoderLayer(nn.Module):
 
         residual = src
 
-        src = self.self_attention(query=src, key=src, value=src, mask=src_mask)
+        src, _ = self.self_attention(query=src, key=src, value=src, mask=src_mask)
         src = self.self_attention_layer_norm(src + residual)
 
         residual = src

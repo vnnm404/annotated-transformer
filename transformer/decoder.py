@@ -24,11 +24,11 @@ class DecoderLayer(nn.Module):
         # mem_mask: [tgt_sequence_length, src_sequence_length]
 
         residual = tgt
-        tgt = self.self_attention(query=tgt, key=tgt, value=tgt, mask=tgt_mask)
+        tgt, _ = self.self_attention(query=tgt, key=tgt, value=tgt, mask=tgt_mask)
         tgt = self.self_attention_layer_norm(tgt + residual)
 
         residual = tgt
-        tgt = self.encoder_decoder_attention(
+        tgt, _ = self.encoder_decoder_attention(
             query=tgt, key=src, value=src, mask=mem_mask
         )
         tgt = self.encoder_decoder_layer_norm(tgt + residual)
