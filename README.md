@@ -9,3 +9,4 @@ It was tested on synthetic data, try to use the attention plots to figure out th
 - Positional Embeddings not included, similar to `nn.Transformer` but you can find an implementation in `usage.ipynb`.
 - Parallel `MultiHeadAttention` outperforms the for loop implementation significantly, as expected.
 - Assumes `batch_first=True` input by default and cna't be changed.
+- Uses `einsum` for attention computation rather than `bmm` for readability, this might impact performance.
